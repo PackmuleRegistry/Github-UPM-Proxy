@@ -1,0 +1,24 @@
+name = "github-upm-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret configuration. Override per-environment below or with `wrangler deploy --var`.
+[vars]
+GITHUB_ORG = "PackmuleRegistry"
+UPSTREAM_REGISTRY = "https://npm.pkg.github.com"
+CACHE_TTL_SECONDS = "300"
+GITHUB_API_URL = "https://api.github.com"
+
+# Secrets (set with `wrangler secret put <NAME>`, never committed):
+#   GITHUB_TOKEN      - GitHub PAT (classic) with `read:packages` scope. Used server-side
+#                        to authenticate all requests to the GitHub npm registry / REST API.
+#   PROXY_AUTH_TOKEN  - Optional shared secret. When set, clients (Unity's upmconfig.toml)
+#                        must send `Authorization: Bearer <PROXY_AUTH_TOKEN>` to use this worker.
+
+# Example additional environment:
+# [env.staging.vars]
+# GITHUB_ORG = "PackmuleRegistry"
+# UPSTREAM_REGISTRY = "https://npm.pkg.github.com"
+# CACHE_TTL_SECONDS = "60"
+# GITHUB_API_URL = "https://api.github.com"

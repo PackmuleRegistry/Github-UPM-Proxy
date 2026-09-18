@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local `wrangler dev` (this file is gitignored).
+GITHUB_TOKEN=ghp_your_personal_access_token_with_read_packages_scope
+# Optional: require Unity clients to send `Authorization: Bearer <value>`
+PROXY_AUTH_TOKEN=
