@@ -16,6 +16,11 @@ synthesizes those two endpoints on the fly from the GitHub REST API + registry.
 
 ## How it works
 
+- `GET /` → the worker returns a small JSON status page describing itself (org, scope,
+  available endpoints) instead of forwarding to GitHub. GitHub's registry has nothing
+  useful at its own root - it 301s to `github.com/features/packages`, which redirects
+  again to an unrelated marketing/doc page - so this avoids that dead end for anyone who
+  opens the worker URL directly in a browser.
 - `GET /-/all` and `GET /-/v1/search` → the worker calls
   `GET /orgs/{org}/packages?package_type=npm` on the GitHub REST API to enumerate every
   npm package owned by the configured org, fetches each package's packument from the
