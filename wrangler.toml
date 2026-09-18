@@ -15,7 +15,7 @@ GITHUB_API_URL = "https://api.github.com"
 # Create with `wrangler kv namespace create PACKUMENT_CACHE` and paste the id below.
 [[kv_namespaces]]
 binding = "PACKUMENT_CACHE"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "5aa0024a4bab4e3fbfcf535f07131e0e"
 
 # Proactively refreshes the cache in the background so user requests rarely need to
 # block on a live GitHub fetch. Adjust to taste; must stay <= CACHE_TTL_SECONDS.

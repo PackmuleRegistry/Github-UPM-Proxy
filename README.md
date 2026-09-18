@@ -62,12 +62,8 @@ Non-secret settings live in `wrangler.toml` under `[vars]`:
 | `CACHE_TTL_SECONDS` | `300` | How long a cached package list is considered fresh before a background refresh is triggered. |
 | `FETCH_CONCURRENCY` | `8` | Max concurrent upstream requests when building the package list (subrequest/rate-limit guard). |
 
-You'll also need a KV namespace bound as `PACKUMENT_CACHE`:
-
-```powershell
-npx wrangler kv namespace create PACKUMENT_CACHE
-# paste the returned id into wrangler.toml's [[kv_namespaces]] block
-```
+You'll also need a KV namespace bound as `PACKUMENT_CACHE` (see [Deploying](#deploying)
+below for the exact commands).
 
 Secrets (never committed, set with `wrangler secret put <NAME>`):
 
@@ -85,15 +81,37 @@ Copy-Item .dev.vars.example .dev.vars
 npm run dev
 ```
 
+`wrangler dev` simulates the `PACKUMENT_CACHE` KV namespace locally, so no Cloudflare
+account setup is required just to run the worker locally. You only need to create the
+real KV namespace (see [Deploying](#deploying)) before `wrangler deploy`.
+
 ## Deploying
 
-```powershell
-npm install
-npx wrangler secret put GITHUB_TOKEN
-# optional:
-npx wrangler secret put PROXY_AUTH_TOKEN
-npm run deploy
-```
+1. Create the KV namespace used for the package-list cache, then paste the returned
+   `id` into the `[[kv_namespaces]]` block in `wrangler.toml` (replacing
+   `REPLACE_WITH_KV_NAMESPACE_ID`):
+
+   ```powershell
+   npx wrangler kv namespace create PACKUMENT_CACHE
+   ```
+
+   This only needs to be done once per Cloudflare account/environment; re-deploys
+   afterwards reuse the same namespace `id` already committed in `wrangler.toml`.
+
+2. Install dependencies and set secrets:
+
+   ```powershell
+   npm install
+   npx wrangler secret put GITHUB_TOKEN
+   # optional:
+   npx wrangler secret put PROXY_AUTH_TOKEN
+   ```
+
+3. Deploy:
+
+   ```powershell
+   npm run deploy
+   ```
 
 ## Configuring Unity
 

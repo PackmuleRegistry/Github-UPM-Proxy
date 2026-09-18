@@ -2,6 +2,7 @@ import type { Env } from "./types";
 import { handleAll } from "./handlers/all";
 import { handleSearch } from "./handlers/search";
 import { handleProxy } from "./handlers/proxy";
+import { handleIndex } from "./handlers/index-info";
 import { warmCache } from "./cache";
 
 function isAuthorized(request: Request, env: Env): boolean {
@@ -25,6 +26,10 @@ export default {
 		const url = new URL(request.url);
 
 		try {
+			if (url.pathname === "/" || url.pathname === "") {
+				return handleIndex(env);
+			}
+
 			if (url.pathname === "/-/all") {
 				return await handleAll(env, ctx);
 			}
