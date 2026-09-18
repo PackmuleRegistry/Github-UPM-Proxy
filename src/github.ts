@@ -72,15 +72,48 @@ export async function fetchPackument(env: Env, scopedName: string): Promise<NpmP
 }
 
 /**
- * Fetches packuments for every npm package in the org, in parallel.
- * Failures for individual packages are logged and skipped rather than failing the whole batch.
+ * Runs `worker` over `items` with at most `concurrency` in flight at once. Used to stay
+ * well under both Cloudflare Workers' per-invocation subrequest limit (50 on Free plans,
+ * 1000 on paid) and GitHub's secondary/abuse rate limits, which trigger on bursts of
+ * concurrent requests even when the hourly quota isn't close to exhausted.
+ */
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	concurrency: number,
+	worker: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+	const results: PromiseSettledResult<R>[] = new Array(items.length);
+	let next = 0;
+
+	async function run(): Promise<void> {
+		for (;;) {
+			const index = next++;
+			if (index >= items.length) return;
+			try {
+				results[index] = { status: "fulfilled", value: await worker(items[index] as T) };
+			} catch (reason) {
+				results[index] = { status: "rejected", reason };
+			}
+		}
+	}
+
+	const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => run());
+	await Promise.all(workers);
+	return results;
+}
+
+/**
+ * Fetches packuments for every npm package in the org, throttled to a bounded number of
+ * concurrent upstream requests. Failures for individual packages are logged and skipped
+ * rather than failing the whole batch.
  */
 export async function fetchAllPackuments(env: Env): Promise<NpmPackument[]> {
 	const pkgs = await listOrgNpmPackages(env);
 	const scope = orgScope(env);
+	const concurrency = Number.parseInt(env.FETCH_CONCURRENCY, 10) || 8;
 
-	const results = await Promise.allSettled(
-		pkgs.map((pkg) => fetchPackument(env, `${scope}/${pkg.name}`)),
+	const results = await mapWithConcurrency(pkgs, concurrency, (pkg) =>
+		fetchPackument(env, `${scope}/${pkg.name}`),
 	);
 
 	const packuments: NpmPackument[] = [];

@@ -8,7 +8,19 @@ compatibility_flags = ["nodejs_compat"]
 GITHUB_ORG = "PackmuleRegistry"
 UPSTREAM_REGISTRY = "https://npm.pkg.github.com"
 CACHE_TTL_SECONDS = "300"
+FETCH_CONCURRENCY = "8"
 GITHUB_API_URL = "https://api.github.com"
+
+# KV namespace backing the shared, stale-while-revalidate package-list cache.
+# Create with `wrangler kv namespace create PACKUMENT_CACHE` and paste the id below.
+[[kv_namespaces]]
+binding = "PACKUMENT_CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Proactively refreshes the cache in the background so user requests rarely need to
+# block on a live GitHub fetch. Adjust to taste; must stay <= CACHE_TTL_SECONDS.
+[triggers]
+crons = ["*/5 * * * *"]
 
 # Secrets (set with `wrangler secret put <NAME>`, never committed):
 #   GITHUB_TOKEN      - GitHub PAT (classic) with `read:packages` scope. Used server-side

@@ -19,12 +19,36 @@ synthesizes those two endpoints on the fly from the GitHub REST API + registry.
 - `GET /-/all` and `GET /-/v1/search` → the worker calls
   `GET /orgs/{org}/packages?package_type=npm` on the GitHub REST API to enumerate every
   npm package owned by the configured org, fetches each package's packument from the
-  upstream registry, and assembles the response shape Unity expects. Results are cached
-  with the Workers Cache API for `CACHE_TTL_SECONDS` to limit GitHub API calls.
+  upstream registry, and assembles the response shape Unity expects.
 - Everything else (package metadata, `dist-tags`, tarball downloads, publish, etc.) is
   reverse-proxied byte-for-byte to `UPSTREAM_REGISTRY` (`https://npm.pkg.github.com` by
   default), with the server-side `GITHUB_TOKEN` injected as the `Authorization` header.
   Unity/npm clients never need their own GitHub PAT.
+
+### Avoiding rate limits
+
+Enumerating every package requires N+1 upstream requests (one list call, one packument
+fetch per package), which can add up for large orgs and risks two real limits:
+
+- **Cloudflare Workers subrequest cap** — 50 subrequests per invocation on the Free
+  plan, 1000 on paid plans. Fetching is throttled to `FETCH_CONCURRENCY` (default 8)
+  concurrent requests via a small worker pool, which also avoids...
+- **GitHub secondary/abuse rate limiting** — triggered by bursts of concurrent
+  requests, independent of the hourly quota (5000 req/hr for an authenticated PAT).
+
+On top of that, the package list is cached in a **KV namespace** (`PACKUMENT_CACHE`)
+with stale-while-revalidate semantics:
+
+- A fresh cache hit is served immediately, no upstream calls.
+- A stale hit is still served immediately, while a refresh is kicked off in the
+  background (`ctx.waitUntil`) - so a request never blocks on a full re-fetch.
+- Only a true cache miss (e.g. very first request after deploy) blocks on a live fetch.
+- A **Cron Trigger** (`[triggers]` in `wrangler.toml`, every 5 minutes by default) keeps
+  the cache warm proactively, so in steady state user requests essentially never trigger
+  a live GitHub fetch at all.
+
+If your org has a very large number of packages, lower `FETCH_CONCURRENCY` further
+and/or raise `CACHE_TTL_SECONDS` and the cron interval.
 
 ## Configuration
 
@@ -35,7 +59,15 @@ Non-secret settings live in `wrangler.toml` under `[vars]`:
 | `GITHUB_ORG` | `PackmuleRegistry` | GitHub org/user that owns the npm packages. Lowercased to build the npm scope (`@packmuleregistry`). |
 | `UPSTREAM_REGISTRY` | `https://npm.pkg.github.com` | Upstream registry to proxy to. |
 | `GITHUB_API_URL` | `https://api.github.com` | GitHub REST API base, for enumerating packages. |
-| `CACHE_TTL_SECONDS` | `300` | How long `/-/all` and `/-/v1/search` results are cached. |
+| `CACHE_TTL_SECONDS` | `300` | How long a cached package list is considered fresh before a background refresh is triggered. |
+| `FETCH_CONCURRENCY` | `8` | Max concurrent upstream requests when building the package list (subrequest/rate-limit guard). |
+
+You'll also need a KV namespace bound as `PACKUMENT_CACHE`:
+
+```powershell
+npx wrangler kv namespace create PACKUMENT_CACHE
+# paste the returned id into wrangler.toml's [[kv_namespaces]] block
+```
 
 Secrets (never committed, set with `wrangler secret put <NAME>`):
 

@@ -2,6 +2,7 @@ import type { Env } from "./types";
 import { handleAll } from "./handlers/all";
 import { handleSearch } from "./handlers/search";
 import { handleProxy } from "./handlers/proxy";
+import { warmCache } from "./cache";
 
 function isAuthorized(request: Request, env: Env): boolean {
 	if (!env.PROXY_AUTH_TOKEN) return true;
@@ -37,5 +38,18 @@ export default {
 			console.error("Unhandled error", err);
 			return new Response(`Upstream error: ${(err as Error).message}`, { status: 502 });
 		}
+	},
+
+	/**
+	 * Proactively refreshes the package-list cache on a schedule (see [triggers] in
+	 * wrangler.toml), so user-facing requests almost always hit a warm KV cache instead
+	 * of triggering a live GitHub fetch.
+	 */
+	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		if (!env.GITHUB_TOKEN) {
+			console.error("Skipping scheduled cache refresh: GITHUB_TOKEN is not set.");
+			return;
+		}
+		ctx.waitUntil(warmCache(env));
 	},
 } satisfies ExportedHandler<Env>;
